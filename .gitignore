@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+backend/cafeteria.db
+
+# Node
+node_modules/
+frontend/dist/
+
+# Varios
+.DS_Store
+.env

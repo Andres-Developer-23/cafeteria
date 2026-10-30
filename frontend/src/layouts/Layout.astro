@@ -1,0 +1,51 @@
+---
+const { title = 'Café Aroma' } = Astro.props;
+---
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <title>{title}</title>
+</head>
+<body>
+  <slot />
+</body>
+</html>
+
+<style is:global>
+  :root {
+    --bg: #faf6f0;
+    --surface: #ffffff;
+    --text: #2d1f1a;
+    --muted: #8a766c;
+    --primary: #6f4e37;
+    --primary-dark: #55382a;
+    --accent: #d4a373;
+    --success: #4a7c59;
+    --danger: #b04a3f;
+    --radius: 14px;
+    --shadow: 0 4px 18px rgba(45, 31, 26, .08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  button { font: inherit; cursor: pointer; border: none; border-radius: 10px; }
+  input { font: inherit; }
+  .btn {
+    background: var(--primary); color: #fff; padding: .7rem 1.2rem; font-weight: 600;
+    transition: background .15s, transform .05s;
+  }
+  .btn:hover { background: var(--primary-dark); }
+  .btn:active { transform: scale(.98); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
+  .btn-ghost:hover { background: var(--primary); color: #fff; }
+  .badge { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+</style>

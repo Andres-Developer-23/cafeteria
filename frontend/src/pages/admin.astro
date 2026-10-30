@@ -1,0 +1,151 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Café Aroma — Panel de cocina">
+  <header class="topbar">
+    <div class="brand">☕ Café Aroma · Cocina</div>
+    <nav><a href="/">← Volver al menú</a></nav>
+  </header>
+
+  <main>
+    <section id="auth" class="auth">
+      <h1>Panel de cocina</h1>
+      <p class="muted">Ingresa el token de administrador para ver los pedidos.</p>
+      <input id="token" type="password" placeholder="Token de admin" />
+      <button id="enter" class="btn">Entrar</button>
+      <p id="auth-error" class="error" hidden>Token inválido.</p>
+    </section>
+
+    <section id="board" hidden>
+      <div class="board-head">
+        <h1>Pedidos en vivo</h1>
+        <div>
+          <span id="live" class="badge live">● en vivo</span>
+          <button id="logout" class="btn-ghost btn">Salir</button>
+        </div>
+      </div>
+      <div id="orders" class="orders">Cargando…</div>
+    </section>
+  </main>
+
+<script>
+  const API = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000/api';
+  const money = (n) => '$' + Number(n).toFixed(2);
+  const $ = (id) => document.getElementById(id);
+  const LABELS = { pending: 'Sin pagar', paid: 'Pagado', preparing: 'Preparando', ready: 'Listo', completed: 'Completado', cancelled: 'Cancelado' };
+  const ACTIONS = {
+    paid: [['preparing', 'Empezar preparación', ''], ['cancelled', 'Cancelar', 'ghost']],
+    preparing: [['ready', 'Marcar listo', ''], ['cancelled', 'Cancelar', 'ghost']],
+    ready: [['completed', 'Entregado ✓', '']],
+  };
+  let timer = null;
+
+  const token = () => localStorage.getItem('cafeteria_admin_token') || '';
+
+  async function api(path, opts = {}) {
+    const res = await fetch(`${API}${path}`, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', 'X-Admin-Token': token(), ...(opts.headers || {}) },
+    });
+    if (res.status === 401) throw new Error('unauthorized');
+    return res.json();
+  }
+
+  function show(tokenOk) {
+    $('auth').hidden = tokenOk;
+    $('board').hidden = !tokenOk;
+    if (tokenOk) { refresh(); timer = setInterval(refresh, 5000); }
+    else clearInterval(timer);
+  }
+
+  async function refresh() {
+    try {
+      const orders = await api('/orders');
+      $('auth-error').hidden = true;
+      render(orders);
+    } catch {
+      clearInterval(timer);
+      localStorage.removeItem('cafeteria_admin_token');
+      show(false);
+      $('auth-error').hidden = false;
+    }
+  }
+
+  function render(orders) {
+    const open = orders.filter(o => !['completed', 'cancelled'].includes(o.status));
+    const done = orders.filter(o => ['completed', 'cancelled'].includes(o.status)).slice(0, 8);
+    const card = (o) => `
+      <article class="order s-${o.status}">
+        <div class="o-head">
+          <strong>#${o.id}</strong>
+          <span class="badge b-${o.status}">${LABELS[o.status] || o.status}</span>
+        </div>
+        <p class="o-name">${o.customer_name}</p>
+        <ul>${o.items.map(i => `<li>${i.quantity} × ${i.name}</li>`).join('')}</ul>
+        <div class="o-foot">
+          <span>${o.payment ? `💳 **** ${o.payment.card_last4}` : '⏳ sin pagar'}</span>
+          <strong>${money(o.total)}</strong>
+        </div>
+        <div class="o-actions">
+          ${(ACTIONS[o.status] || []).map(([st, label, cls]) =>
+            `<button class="btn ${cls}" data-id="${o.id}" data-status="${st}">${label}</button>`).join('')}
+        </div>
+      </article>`;
+    $('orders').innerHTML = open.length || done.length
+      ? `<h2>Activos (${open.length})</h2><div class="grid">${open.map(card).join('') || '<p class="muted">No hay pedidos activos.</p>'}</div>
+         ${done.length ? `<h2>Recientes</h2><div class="grid">${done.map(card).join('')}</div>` : ''}`
+      : '<p class="muted">Aún no hay pedidos. ¡Animate a hacer el primero desde el menú!</p>';
+    $('orders').querySelectorAll('button[data-status]').forEach(b =>
+      b.addEventListener('click', async () => {
+        b.disabled = true;
+        await api(`/orders/${b.dataset.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.status }) });
+        refresh();
+      }));
+  }
+
+  $('enter').addEventListener('click', () => {
+    localStorage.setItem('cafeteria_admin_token', $('token').value.trim());
+    show(true);
+  });
+  $('logout').addEventListener('click', () => { localStorage.removeItem('cafeteria_admin_token'); show(false); });
+  show(!!token());
+</script>
+
+<style>
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 1.5rem; background: var(--surface); box-shadow: var(--shadow);
+  }
+  .brand { font-size: 1.2rem; font-weight: 800; color: var(--primary); }
+  .topbar a { color: var(--muted); text-decoration: none; font-weight: 600; }
+  main { max-width: 1100px; margin: 0 auto; padding: 1.5rem 1rem; }
+  .muted { color: var(--muted); }
+  .auth { max-width: 380px; margin: 4rem auto; background: var(--surface); padding: 2rem; border-radius: var(--radius); box-shadow: var(--shadow); text-align: center; }
+  .auth input { width: 100%; padding: .7rem; border: 1.5px solid #e7dcd2; border-radius: 10px; margin: 1rem 0 .8rem; background: var(--bg); }
+  .auth .btn { width: 100%; }
+  .error { color: var(--danger); margin-top: .6rem; }
+  .board-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: .6rem; }
+  .board-head h1 { color: var(--primary-dark); font-size: 1.5rem; }
+  .live { background: #e3f2e8; color: var(--success); margin-right: .6rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.6rem; }
+  .order { background: var(--surface); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); border-top: 4px solid var(--accent); }
+  .order.s-paid { border-top-color: #5b8def; }
+  .order.s-preparing { border-top-color: var(--accent); }
+  .order.s-ready { border-top-color: var(--success); }
+  .order.s-cancelled { border-top-color: var(--danger); opacity: .75; }
+  .order.s-completed { border-top-color: #b9c4bd; }
+  .o-head { display: flex; justify-content: space-between; align-items: center; }
+  .o-name { font-weight: 700; margin: .3rem 0; }
+  .order ul { padding-left: 1.1rem; font-size: .9rem; color: var(--muted); }
+  .o-foot { display: flex; justify-content: space-between; margin: .5rem 0; font-size: .9rem; }
+  .o-actions { display: flex; gap: .5rem; }
+  .o-actions .btn { padding: .45rem .7rem; font-size: .85rem; flex: 1; }
+  .b-pending { background: #f3e9df; color: #8a6a3d; }
+  .b-paid { background: #e6eefc; color: #34579b; }
+  .b-preparing { background: #f7ecdc; color: #96682a; }
+  .b-ready { background: #e3f2e8; color: var(--success); }
+  .b-completed { background: #eceee9; color: #6b7a6f; }
+  .b-cancelled { background: #f9e4e1; color: var(--danger); }
+  h2 { font-size: 1.05rem; color: var(--muted); margin: .8rem 0 .6rem; }
+</style>
+</Layout>

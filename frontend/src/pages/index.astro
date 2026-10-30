@@ -1,0 +1,330 @@
+---
+import Layout from '../layouts/Layout.astro';
+---
+<Layout title="Café Aroma — Pide tu café">
+  <header class="topbar">
+    <div class="brand">☕ Café Aroma</div>
+    <nav><a href="/admin">Panel de cocina →</a></nav>
+  </header>
+
+  <main>
+    <section class="hero">
+      <h1>Tu café, sin filas</h1>
+      <p>Elige, paga en línea y recoge en el mostrador.</p>
+    </section>
+
+    <div id="chips" class="chips"></div>
+    <div id="menu" class="grid" aria-live="polite">Cargando menú…</div>
+  </main>
+
+  <button id="cart-btn" class="cart-btn" hidden>🛒 <span id="cart-count">0</span></button>
+
+  <div id="overlay" class="overlay" hidden></div>
+
+  <!-- Carrito -->
+  <aside id="cart-drawer" class="drawer" hidden aria-label="Carrito">
+    <div class="drawer-head">
+      <h2>Tu pedido</h2>
+      <button class="close" data-close>✕</button>
+    </div>
+    <div id="cart-items"></div>
+    <div class="drawer-foot">
+      <div class="total-row">Total <strong id="cart-total">$0.00</strong></div>
+      <label class="field">Nombre del pedido
+        <input id="customer-name" type="text" placeholder="Ej. Andrea López" maxlength="120" />
+      </label>
+      <button id="to-pay" class="btn">Continuar al pago →</button>
+    </div>
+  </aside>
+
+  <!-- Pago -->
+  <div id="pay-modal" class="modal" hidden role="dialog" aria-label="Pago">
+    <div class="modal-card">
+      <div class="drawer-head">
+        <h2>Pago con tarjeta</h2>
+        <button class="close" data-close>✕</button>
+      </div>
+      <p class="pay-summary">Pedido <strong id="pay-order-id"></strong> — <strong id="pay-amount"></strong></p>
+      <form id="pay-form" novalidate>
+        <label class="field">Número de tarjeta
+          <input id="card-number" inputmode="numeric" placeholder="4242 4242 4242 4242" maxlength="19" required />
+        </label>
+        <div class="row">
+          <label class="field">Vence (MM/AA)
+            <input id="card-exp" inputmode="numeric" placeholder="12/30" maxlength="5" required />
+          </label>
+          <label class="field">CVC
+            <input id="card-cvc" inputmode="numeric" placeholder="123" maxlength="4" required />
+          </label>
+        </div>
+        <label class="field">Titular
+          <input id="card-holder" type="text" placeholder="Como figura en la tarjeta" maxlength="120" required />
+        </label>
+        <p id="pay-error" class="error" hidden></p>
+        <button id="pay-btn" class="btn" type="submit">Pagar</button>
+        <p class="sandbox-note">🧪 Modo demostración: usa la tarjeta 4242 4242 4242 4242 (aprobarse) o 4000 0000 0000 0002 (rechazarse).</p>
+      </form>
+    </div>
+  </div>
+
+  <!-- Éxito -->
+  <div id="ok-modal" class="modal" hidden role="dialog" aria-label="Pedido confirmado">
+    <div class="modal-card ok">
+      <div class="ok-icon">✅</div>
+      <h2>¡Pago aprobado!</h2>
+      <p>Tu pedido es el <strong id="ok-order"></strong></p>
+      <p class="muted" id="ok-txn"></p>
+      <button class="btn" data-close>Hacer otro pedido</button>
+    </div>
+  </div>
+
+<script>
+  const API = import.meta.env.PUBLIC_API_URL || 'http://localhost:8000/api';
+  const money = (n) => '$' + Number(n).toFixed(2);
+
+  let menu = [];
+  let cart = JSON.parse(localStorage.getItem('cafeteria_cart') || '{}');
+  let activeCategory = 'todo';
+  let lastOrder = null;
+
+  const $ = (id) => document.getElementById(id);
+  const overlay = $('overlay');
+
+  function saveCart() { localStorage.setItem('cafeteria_cart', JSON.stringify(cart)); }
+
+  async function loadMenu() {
+    try {
+      menu = await (await fetch(`${API}/menu`)).json();
+    } catch {
+      $('menu').innerHTML = '<p class="error">No se pudo conectar con el servidor. Intenta de nuevo.</p>';
+      return;
+    }
+    const cats = [...new Set(menu.map(p => p.category))];
+    const labels = { todo: 'Todo', bebidas: 'Bebidas', alimentos: 'Alimentos', postres: 'Postres' };
+    $('chips').innerHTML = ['todo', ...cats].map(c =>
+      `<button class="chip ${c === activeCategory ? 'on' : ''}" data-cat="${c}">${labels[c] || c}</button>`).join('');
+    $('chips').querySelectorAll('.chip').forEach(b =>
+      b.addEventListener('click', () => { activeCategory = b.dataset.cat; loadMenu(); }));
+    renderMenu();
+  }
+
+  function renderMenu() {
+    const items = menu.filter(p => activeCategory === 'todo' || p.category === activeCategory);
+    $('menu').innerHTML = items.map(p => `
+      <article class="card">
+        <div class="emoji">${p.emoji}</div>
+        <h3>${p.name}</h3>
+        <p class="muted">${p.description}</p>
+        <div class="card-foot">
+          <strong>${money(p.price)}</strong>
+          <button class="btn add" data-id="${p.id}">Agregar</button>
+        </div>
+      </article>`).join('');
+    $('menu').querySelectorAll('.add').forEach(b =>
+      b.addEventListener('click', () => addToCart(Number(b.dataset.id))));
+  }
+
+  function addToCart(id) {
+    const p = menu.find(x => x.id === id);
+    if (!p) return;
+    if (!cart[id]) cart[id] = { name: p.name, price: p.price, emoji: p.emoji, qty: 0 };
+    cart[id].qty++;
+    saveCart(); renderCart();
+  }
+
+  function cartEntries() { return Object.entries(cart).filter(([, v]) => v.qty > 0); }
+  function cartTotal() { return cartEntries().reduce((s, [, v]) => s + v.price * v.qty, 0); }
+
+  function renderCart() {
+    const entries = cartEntries();
+    const count = entries.reduce((s, [, v]) => s + v.qty, 0);
+    $('cart-count').textContent = count;
+    $('cart-btn').hidden = count === 0;
+    $('cart-items').innerHTML = entries.length ? entries.map(([id, v]) => `
+      <div class="cart-line">
+        <span>${v.emoji} ${v.name}</span>
+        <span class="qty">
+          <button data-dec="${id}">−</button><b>${v.qty}</b><button data-inc="${id}">+</button>
+        </span>
+        <span>${money(v.price * v.qty)}</span>
+      </div>`).join('') : '<p class="muted">El carrito está vacío.</p>';
+    $('cart-total').textContent = money(cartTotal());
+    $('cart-items').querySelectorAll('[data-inc]').forEach(b =>
+      b.addEventListener('click', () => { cart[b.dataset.inc].qty++; saveCart(); renderCart(); }));
+    $('cart-items').querySelectorAll('[data-dec]').forEach(b =>
+      b.addEventListener('click', () => {
+        const id = b.dataset.dec;
+        cart[id].qty--;
+        if (cart[id].qty <= 0) delete cart[id];
+        saveCart(); renderCart();
+      }));
+  }
+
+  function openPanel(el) { el.hidden = false; overlay.hidden = false; document.body.style.overflow = 'hidden'; }
+  function closeAll() {
+    overlay.hidden = true;
+    ['cart-drawer', 'pay-modal', 'ok-modal'].forEach(id => $(id).hidden = true);
+    document.body.style.overflow = '';
+  }
+  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', closeAll));
+  overlay.addEventListener('click', closeAll);
+  $('cart-btn').addEventListener('click', () => openPanel($('cart-drawer')));
+
+  // Paso 1: crear pedido en el backend (el total lo calcula el servidor)
+  $('to-pay').addEventListener('click', async () => {
+    const name = $('customer-name').value.trim();
+    if (name.length < 2) { alert('Escribe tu nombre para el pedido.'); return; }
+    const items = cartEntries().map(([id, v]) => ({ product_id: Number(id), quantity: v.qty }));
+    $('to-pay').disabled = true;
+    try {
+      const res = await fetch(`${API}/orders`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_name: name, items }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || 'Error al crear el pedido');
+      lastOrder = body;
+      $('pay-order-id').textContent = '#' + body.order_id;
+      $('pay-amount').textContent = money(body.total);
+      $('cart-drawer').hidden = true;
+      openPanel($('pay-modal'));
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      $('to-pay').disabled = false;
+    }
+  });
+
+  // Formato de campos de tarjeta
+  $('card-number').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
+  });
+  $('card-exp').addEventListener('input', (e) => {
+    let v = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (v.length >= 3) v = v.slice(0, 2) + '/' + v.slice(2);
+    e.target.value = v;
+  });
+  $('card-cvc').addEventListener('input', (e) => {
+    e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4);
+  });
+
+  // Paso 2: cobrar con la pasarela
+  $('pay-form').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const err = $('pay-error');
+    err.hidden = true;
+    const [mm, yy] = $('card-exp').value.split('/');
+    const payload = {
+      order_id: lastOrder.order_id,
+      card_number: $('card-number').value,
+      exp_month: Number(mm), exp_year: Number('20' + (yy || '')),
+      cvc: $('card-cvc').value, holder_name: $('card-holder').value.trim(),
+    };
+    if (!payload.exp_month || !payload.exp_year || payload.holder_name.length < 2 || payload.cvc.length < 3) {
+      err.textContent = 'Revisa los datos de la tarjeta.'; err.hidden = false; return;
+    }
+    $('pay-btn').disabled = true;
+    try {
+      const res = await fetch(`${API}/payments`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.detail || 'Error en el pago');
+      if (body.payment_status === 'rejected') {
+        err.textContent = '❌ ' + (body.reason || 'Pago rechazado'); err.hidden = false; return;
+      }
+      cart = {}; saveCart(); renderCart();
+      $('ok-order').textContent = '#' + body.order_id;
+      $('ok-txn').textContent = 'Transacción: ' + body.transaction_id;
+      $('pay-modal').hidden = true;
+      openPanel($('ok-modal'));
+    } catch (e) {
+      err.textContent = e.message; err.hidden = false;
+    } finally {
+      $('pay-btn').disabled = false;
+    }
+  });
+
+  loadMenu();
+  renderCart();
+</script>
+
+<style>
+  .topbar {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 1rem 1.5rem; background: var(--surface); box-shadow: var(--shadow);
+    position: sticky; top: 0; z-index: 5;
+  }
+  .brand { font-size: 1.3rem; font-weight: 800; color: var(--primary); }
+  .topbar a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: .95rem; }
+  .topbar a:hover { color: var(--primary); }
+  main { max-width: 1050px; margin: 0 auto; padding: 1.5rem 1rem 6rem; }
+  .hero { text-align: center; padding: 2rem 0 1rem; }
+  .hero h1 { font-size: 2.1rem; color: var(--primary-dark); }
+  .hero p { color: var(--muted); }
+  .chips { display: flex; gap: .5rem; flex-wrap: wrap; justify-content: center; margin: 1.2rem 0; }
+  .chip {
+    background: var(--surface); border: 1.5px solid #e7dcd2; color: var(--text);
+    padding: .45rem 1rem; border-radius: 999px; font-weight: 600; font-size: .9rem;
+  }
+  .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
+  .card {
+    background: var(--surface); border-radius: var(--radius); padding: 1.1rem;
+    box-shadow: var(--shadow); display: flex; flex-direction: column; gap: .35rem;
+  }
+  .emoji { font-size: 2.4rem; }
+  .card h3 { font-size: 1.05rem; }
+  .card .muted { font-size: .85rem; flex: 1; }
+  .card-foot { display: flex; justify-content: space-between; align-items: center; margin-top: .5rem; }
+  .card-foot strong { color: var(--primary-dark); font-size: 1.1rem; }
+  .add { padding: .4rem .9rem; font-size: .9rem; }
+  .muted { color: var(--muted); }
+
+  .cart-btn {
+    position: fixed; bottom: 1.4rem; right: 1.4rem; z-index: 20;
+    background: var(--primary); color: #fff; font-size: 1.1rem; font-weight: 700;
+    padding: .9rem 1.3rem; border-radius: 999px; box-shadow: 0 8px 24px rgba(45,31,26,.35);
+  }
+  .overlay { position: fixed; inset: 0; background: rgba(45,31,26,.45); z-index: 30; }
+
+  .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); z-index: 40;
+    background: var(--surface); box-shadow: -8px 0 30px rgba(45,31,26,.2);
+    display: flex; flex-direction: column; padding: 1.2rem;
+  }
+  .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; }
+  .drawer-head h2 { color: var(--primary-dark); }
+  .close { background: none; font-size: 1.1rem; color: var(--muted); padding: .3rem .5rem; }
+  #cart-items { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: .6rem; }
+  .cart-line {
+    display: grid; grid-template-columns: 1fr auto auto; gap: .6rem; align-items: center;
+    padding: .6rem; background: var(--bg); border-radius: 10px; font-size: .92rem;
+  }
+  .qty { display: flex; gap: .4rem; align-items: center; }
+  .qty button { width: 26px; height: 26px; border-radius: 8px; background: var(--primary); color: #fff; font-weight: 700; }
+  .drawer-foot { border-top: 1px solid #eee3d8; padding-top: .9rem; display: flex; flex-direction: column; gap: .8rem; }
+  .total-row { display: flex; justify-content: space-between; font-size: 1.1rem; }
+
+  .modal { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 1rem; }
+  .modal-card {
+    background: var(--surface); border-radius: var(--radius); padding: 1.4rem;
+    width: min(430px, 100%); box-shadow: 0 20px 60px rgba(45,31,26,.35); max-height: 92vh; overflow-y: auto;
+  }
+  .pay-summary { color: var(--muted); margin-bottom: .9rem; }
+  .field { display: flex; flex-direction: column; gap: .3rem; font-size: .88rem; font-weight: 600; margin-bottom: .8rem; flex: 1; }
+  .field input {
+    padding: .65rem .8rem; border: 1.5px solid #e7dcd2; border-radius: 10px; background: var(--bg);
+  }
+  .field input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: .8rem; }
+  #pay-btn { width: 100%; margin-top: .3rem; }
+  .error { color: var(--danger); font-size: .9rem; margin-bottom: .6rem; }
+  .sandbox-note { font-size: .78rem; color: var(--muted); margin-top: .8rem; }
+  .ok { text-align: center; }
+  .ok-icon { font-size: 3rem; }
+  .ok h2 { color: var(--success); margin: .4rem 0; }
+  .ok .muted { font-size: .85rem; margin-bottom: 1rem; }
+</style>
+</Layout>
