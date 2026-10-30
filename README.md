@@ -57,11 +57,19 @@ PUBLIC_API_URL=http://localhost:8000/api npm run dev   # http://localhost:4321
 cd backend && python -m pytest test_api.py -q
 ```
 
-## Despliegue
+## Producción
+
+| Recurso | URL |
+|---------|-----|
+| Sitio web (Astro) | https://cafeteria-aroma-web-69a2.onrender.com |
+| Panel de cocina | https://cafeteria-aroma-web-69a2.onrender.com/admin |
+| API (FastAPI) | https://cafeteria-aroma-api.onrender.com |
+| Health check | https://cafeteria-aroma-api.onrender.com/api/health |
+| Base de datos | Render Postgres `cafeteria-aroma-db` (oregon) |
 
 El backend (`backend/`) y el frontend (`frontend/`) viven en este mismo monorepo.
 Render despliega desde GitHub: el web service usa `backend/` (runtime Python) y el
-static site construye `frontend/` con Node.
+static site construye `frontend/` con Node. Cada push a `main` redespliega ambos.
 
 Para conectar **Stripe** en producción: reemplaza la función `charge_card()` en
 `backend/main.py` por una llamada real a la Stripe API (misma firma).
