@@ -267,13 +267,16 @@ import Layout from '../layouts/Layout.astro';
   .chip {
     background: var(--surface); border: 1.5px solid #e7dcd2; color: var(--text);
     padding: .45rem 1rem; border-radius: 999px; font-weight: 600; font-size: .9rem;
+    transition: background .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease);
   }
   .chip.on { background: var(--primary); color: #fff; border-color: var(--primary); }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 1rem; }
   .card {
     background: var(--surface); border-radius: var(--radius); padding: 1.1rem;
     box-shadow: var(--shadow); display: flex; flex-direction: column; gap: .35rem;
+    transition: box-shadow .3s var(--ease), transform .3s var(--ease);
   }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(45,31,26,.14); }
   .emoji { font-size: 2.4rem; }
   .card h3 { font-size: 1.05rem; }
   .card .muted { font-size: .85rem; flex: 1; }
@@ -287,13 +290,17 @@ import Layout from '../layouts/Layout.astro';
     background: var(--primary); color: #fff; font-size: 1.1rem; font-weight: 700;
     padding: .9rem 1.3rem; border-radius: 999px; box-shadow: 0 8px 24px rgba(45,31,26,.35);
   }
-  .overlay { position: fixed; inset: 0; background: rgba(45,31,26,.45); z-index: 30; }
+  .overlay { position: fixed; inset: 0; background: rgba(45,31,26,.45); z-index: 30; animation: fade .225s var(--ease); }
 
   .drawer {
     position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 92vw); z-index: 40;
     background: var(--surface); box-shadow: -8px 0 30px rgba(45,31,26,.2);
     display: flex; flex-direction: column; padding: 1.2rem;
+    animation: slide-in .225s var(--ease); /* MUI enteringScreen: 225ms */
   }
+  @keyframes fade { from { opacity: 0; } }
+  @keyframes slide-in { from { transform: translateX(100%); } }
+  @keyframes pop-in { from { opacity: 0; transform: scale(.95); } }
   .drawer-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .8rem; }
   .drawer-head h2 { color: var(--primary-dark); }
   .close { background: none; font-size: 1.1rem; color: var(--muted); padding: .3rem .5rem; }
@@ -311,6 +318,7 @@ import Layout from '../layouts/Layout.astro';
   .modal-card {
     background: var(--surface); border-radius: var(--radius); padding: 1.4rem;
     width: min(430px, 100%); box-shadow: 0 20px 60px rgba(45,31,26,.35); max-height: 92vh; overflow-y: auto;
+    animation: pop-in .225s var(--ease);
   }
   .pay-summary { color: var(--muted); margin-bottom: .9rem; }
   .field { display: flex; flex-direction: column; gap: .3rem; font-size: .88rem; font-weight: 600; margin-bottom: .8rem; flex: 1; }

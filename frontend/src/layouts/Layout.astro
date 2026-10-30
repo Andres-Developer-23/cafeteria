@@ -27,6 +27,8 @@ const { title = 'Café Aroma' } = Astro.props;
     --danger: #b04a3f;
     --radius: 14px;
     --shadow: 0 4px 18px rgba(45, 31, 26, .08);
+    /* MUI: easing easeInOut estándar y duración standard (300ms) */
+    --ease: cubic-bezier(0.4, 0, 0.2, 1);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -38,14 +40,22 @@ const { title = 'Café Aroma' } = Astro.props;
   }
   button { font: inherit; cursor: pointer; border: none; border-radius: 10px; }
   input { font: inherit; }
+  /* MUI focus-visible: anillo de 2px con offset 2px en el color primario (solo teclado) */
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
   .btn {
     background: var(--primary); color: #fff; padding: .7rem 1.2rem; font-weight: 600;
-    transition: background .15s, transform .05s;
+    box-shadow: 0 1px 3px rgba(45,31,26,.18);
+    transition: background .3s var(--ease), box-shadow .3s var(--ease), transform .2s var(--ease);
   }
+  .btn:hover { box-shadow: 0 3px 10px rgba(45,31,26,.28); }
   .btn:hover { background: var(--primary-dark); }
   .btn:active { transform: scale(.98); }
   .btn:disabled { opacity: .5; cursor: not-allowed; }
   .btn-ghost { background: transparent; color: var(--primary); border: 1.5px solid var(--primary); }
   .btn-ghost:hover { background: var(--primary); color: #fff; }
   .badge { display: inline-block; padding: .15rem .6rem; border-radius: 999px; font-size: .78rem; font-weight: 600; }
+  /* MUI reduced-motion (system): desactiva animaciones si el SO lo pide */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition: none !important; animation: none !important; }
+  }
 </style>

@@ -128,7 +128,9 @@ import Layout from '../layouts/Layout.astro';
   .board-head h1 { color: var(--primary-dark); font-size: 1.5rem; }
   .live { background: #e3f2e8; color: var(--success); margin-right: .6rem; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1.6rem; }
-  .order { background: var(--surface); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); border-top: 4px solid var(--accent); }
+  .order { background: var(--surface); border-radius: var(--radius); padding: 1rem; box-shadow: var(--shadow); border-top: 4px solid var(--accent);
+    transition: box-shadow .3s var(--ease), transform .3s var(--ease); }
+  .order:hover { transform: translateY(-2px); box-shadow: 0 10px 26px rgba(45,31,26,.13); }
   .order.s-paid { border-top-color: #5b8def; }
   .order.s-preparing { border-top-color: var(--accent); }
   .order.s-ready { border-top-color: var(--success); }
